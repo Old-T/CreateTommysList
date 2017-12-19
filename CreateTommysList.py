@@ -20,7 +20,6 @@ if not os.path.exists('/home/tommy/CreateTommysList.cfg'):
 
 Config.read('/home/tommy/CreateTommysList.cfg')
 
-
 def ConfigSectionMap(section):
     dict1 = {}
     options = Config.options(section)
@@ -41,10 +40,10 @@ plex = PlexServer(baseurl, token)
 
 playlistName = ConfigSectionMap('General')['playlistname']
 
-SyncThese = "24, The Blacklist: Redemption, Criminal Minds, Hawaii Five-0, Humans, The Kettering Incident,\
-Lethal Weapon, NCIS, NCIS: Los Angeles, NCIS: New Orleans, Person of Interest, S.W.A.T. (2017),\
-SEAL Team, Stranger Things"
-    #ConfigSectionMap(playlistName)['IncludeShows']
+#SyncThese = "24, The Blacklist: Redemption, Criminal Minds, Hawaii Five-0, Humans, The Kettering Incident,\
+#Lethal Weapon, NCIS, NCIS: Los Angeles, NCIS: New Orleans, Person of Interest, S.W.A.T. (2017),\
+#SEAL Team, Stranger Things"
+SyncThese = ConfigSectionMap(playlistName)['includeshows']
 SyncThese = SyncThese.replace('\n', ' ')  # Remove the \n from the read string
 SyncThese = SyncThese.replace(', ', ',')  # Remove the \n from the read string
 
