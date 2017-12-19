@@ -7,14 +7,18 @@ from plexapi.server import PlexServer
 import ConfigParser
 import os.path
 
+baseurl = 'http://192.168.2.50:32400'
+token = 'zbv7hDnHEV2aGKRmQsRd'
+plex = PlexServer(baseurl, token)
 Config = ConfigParser.ConfigParser()
 playlistName = ''
 
-if not os.path.exists('/home/tommy/CreateSyncList.cfg'):
-    print 'CreateSyncList.cfg not found'
+
+if not os.path.exists('/home/tommy/CreateTommysList.cfg'):
+    print( 'CreateTommysList.cfg not found' )
     exit()
 
-Config.read('/home/tommy/CreateSyncList.cfg')
+Config.read('/home/tommy/CreateTommysList.cfg')
 
 
 def ConfigSectionMap(section):
@@ -36,14 +40,15 @@ token = ConfigSectionMap('General')['token']
 plex = PlexServer(baseurl, token)
 
 playlistName = ConfigSectionMap('General')['playlistname']
-numberOfShows2Add = ConfigSectionMap('General')['numberofepisodes2sync']
 
-startAfterThisShow = ConfigSectionMap(playlistName)['lastsyncedshow']
-doNotSyncThese = ConfigSectionMap(playlistName)['excludeshows']
-doNotSyncThese = doNotSyncThese.replace('\n', ' ')  # Remove the \n from the read string
-doNotSyncThese = doNotSyncThese.replace(', ', ',')  # Remove the \n from the read string
+SyncThese = "24, The Blacklist: Redemption, Criminal Minds, Hawaii Five-0, Humans, The Kettering Incident,\
+Lethal Weapon, NCIS, NCIS: Los Angeles, NCIS: New Orleans, Person of Interest, S.W.A.T. (2017),\
+SEAL Team, Stranger Things"
+    #ConfigSectionMap(playlistName)['IncludeShows']
+SyncThese = SyncThese.replace('\n', ' ')  # Remove the \n from the read string
+SyncThese = SyncThese.replace(', ', ',')  # Remove the \n from the read string
 
-ExcludeShows = doNotSyncThese.split(",")
+SyncThese = SyncThese.split(",")
 
 if playlistName == '':
     print ("No playlist specified. Please add PlaylistName under [General] in CreateSyncList.cfg")
@@ -51,82 +56,39 @@ if playlistName == '':
 
 Playlist = plex.playlist(playlistName)
 
-thefirstlist = [];
-AllEpisodes = [];
-TVEpisodes = 0;
-TotalSize = 0;
+AddToPlaylist = []
 
 showName = ''
 StartFromCurrent = False
 
+# Loop through all TV show, for the shows that are included SyncThese check
 # Check for the last show in the playlist and start adding episodes after that.
 # We don't want to  transcode and sync those again
-for episode in Playlist.items():
-    showName = episode.grandparentTitle
+for show2Sync in SyncThese:
 
-    # Trim the showName by removing the leading 'A '/'The ' so we can compared to the titleSort
-    if showName.startswith('A '):
-        showName = showName[2:]
-    if showName.startswith('The '):
-        showName = showName[4:]
+    TVsection = plex.library.section('TV')
+    for shows in TVsection.all():
+        # find the shows we want to sync
+        if shows.title == show2Sync:
+            # Show to sync
+            # Find the last episode in the current playlist.
+            season = -1
+            episodeNo = -1
+            for episode in Playlist.items():
+                if episode.grandparentTitle == shows.title:
+                    season = episode.seasonNumber
+                    episodeNo = episode.index
 
-    if episode.isWatched:
-        Playlist.removeItem(episode)
-    else:
-        TotalSize = TotalSize;
-    StartFromCurrent = True
-    TVEpisodes += 1
+            for episode in shows.episodes():
+                strSeason = episode.seasonNumber  # Do not add special episodes
+                if (strSeason == '0'):
+                    continue
 
-alreadyInList = TVEpisodes
-# If we still have shows left in the current playlist, start from that show
-if (showName != ''):
-    firstShowToAdd = showName
-
-TVsection = plex.library.section('TV')
-for shows in TVsection.all():
-
-    if StartFromCurrent:
-        if firstShowToAdd == shows.titleSort or firstShowToAdd.upper() < shows.titleSort.upper():
-            StartFromCurrent = False
-        continue
-
-    if shows.title in ExcludeShows:
-        print('Excluded: ', shows.title)
-        continue
-
-    episode = shows.episodes()[0]
-
-    if shows.episodes()[0].seasonNumber == '0':  # Don't sync specials
-        for episode in shows.episodes():
-            strSeason = episode.seasonNumber  # We need to explicitly set the seasonNumber to get it right.
-            if (strSeason == '0'):
-                continue
-            thefirstlist.append(episode)
-            TVEpisodes += 1
+                if int(episode.index) > int(episodeNo) or int(episode.seasonNumber) > int(season):
+                    AddToPlaylist.append(episode)
+                    break
             break
-        continue
 
-    if len(shows.episodes()) <= 3:
-        for episode in shows.episodes():
-            thefirstlist.append(episode)
-            TVEpisodes += 1
-        AllEpisodes.append(shows.title)
-    else:
-        thefirstlist.append(shows.episodes()[0])
+Playlist.addItems(AddToPlaylist)
 
-    TVEpisodes += 1;
 
-    if TVEpisodes >= int(numberOfShows2Add):
-        break
-
-Playlist.addItems(thefirstlist)
-
-Config.set(playlistName, 'FirstSyncedShow', thefirstlist[0].grandparentTitle)
-Config.set(playlistName, 'LastSyncedShow', shows.title)
-
-with open(r'CreateSyncList.cfg', 'wb') as configfile:
-    Config.write(configfile)
-
-print('Episodes added to the Playlist:', TVEpisodes - alreadyInList)
-for show in AllEpisodes:
-    print('All episodes are added for show: ', show)
